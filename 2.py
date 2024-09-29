@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
-from sklearn.metrics import accuracy_score, classification_report
 
+# np.random.seed(37) # если будет перемешивание и для отсутствия случайности разбиения, сейчас используется 100% данных
 file_path = 'C:/py proj/1/opros.xlsx'
 output_path = 'C:/py proj/1/results.xlsx'
 
@@ -15,7 +15,7 @@ weights = { # веса
     'Гипертония': 2.0
 }
 
-num_neighbors = 5 # кол-во соседей
+num_neighbors = 3 # кол-во соседей, чем больше соседей тем меньше точность получается
 
 data = pd.read_excel(file_path)
 
@@ -58,9 +58,9 @@ def kNearestNeighbors(X_train, y_train, X_test, k=num_neighbors): # k-ближ �
         distances = [euclideanDist(x_test, x_train) for x_train in X_train]
         k_indices = np.argsort(distances)[:k]
         k_nearest_labels = [y_train[i] for i in k_indices]
+        # k_nearest_labels.sort()  # сортировка меток для детерминированности при ничьей, если понадобится
         prediction = max(set(k_nearest_labels), key=k_nearest_labels.count)
         predictions.append(prediction)
-    
     return predictions
 
 predictions = kNearestNeighbors(X, y, X, k=num_neighbors)
@@ -70,14 +70,47 @@ decoded_predictions = [list(target_encoding_map.keys())[list(target_encoding_map
 data['Предсказание'] = decoded_predictions
 data['Совпадение'] = np.where(data['Предсказание'] == data[target_column], 'Успех', 'Не успех')
 
-accuracy = accuracy_score(data[target_column], data['Предсказание'])
+def calcAccuracy(y_true, y_pred): # вычисление точности
+    correct = sum(1 for true, pred in zip(y_true, y_pred) if true == pred)
+    return correct / len(y_true)
+
+accuracy = calcAccuracy(y, predictions)
 print(f"Точность модели: {accuracy * 100:.2f}%")
 
+def classifReport(y_true, y_pred, target_names, output_dict=True): # подробный отчёт
+    report = {}
+    labels = np.unique(y_true)
+    for label in labels:
+        true_positive = sum((y_true == label) & (y_pred == label))
+        false_positive = sum((y_true != label) & (y_pred == label))
+        false_negative = sum((y_true == label) & (y_pred != label))
+        support = sum(y_true == label)
+        
+        precision = true_positive / (true_positive + false_positive + 1e-5)
+        recall = true_positive / (true_positive + false_negative + 1e-5)
+        f1_score = 2 * precision * recall / (precision + recall + 1e-5)
+        
+        report[target_names[label]] = {
+            'precision': precision,
+            'recall': recall,
+            'f1-score': f1_score,
+            'support': support
+        }
+    if output_dict:
+        return report
+    else:
+        pass
+
 '''
-classification_report_dict = classification_report(data[target_column], data['Предсказание'], target_names=target_encoding_map.keys(), output_dict=True) # подробный отчёт
+classifReport_dict = classifReport(
+    y,
+    [target_encoding_map[pred] for pred in data['Предсказание']],
+    target_names={v: k for k, v in target_encoding_map.items()},
+    output_dict=True
+) # подробный отчёт
 
 print("\nПодробный отчёт:")
-for label, metrics in classification_report_dict.items():
+for label, metrics in classifReport_dict.items():
     if label in target_encoding_map.keys():
         print(f"\nКласс: {label}")
         print(f"Точность: {metrics['precision']:.2f}")
@@ -87,4 +120,4 @@ for label, metrics in classification_report_dict.items():
 '''
 data.to_excel(output_path, index=False)
 
-print(f"Результаты сохранены.")
+# print(f"Результаты сохранены.")
